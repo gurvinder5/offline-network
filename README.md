@@ -1,16 +1,25 @@
-# React + Vite
+# Signal Cache
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+`Signal Cache` is an offline-first web demo for blackout conditions. It lets a team simulate three local nodes, create time-bound alerts, relay message bundles between devices, and prepare communal drop payloads for QR-style public handoff.
 
-Currently, two official plugins are available:
+## What it does
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Stores messages locally in browser storage with expiry and priority metadata
+- Supports multi-hop propagation through compact bundle export and import
+- Uses `BroadcastChannel` for same-machine tab-to-tab demo relays without a network
+- Generates a printable communal drop card backed by the current drop payload
+- Registers a service worker so the app shell remains available offline after the first load
 
-## React Compiler
+## Local demo flow
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+1. Run `npm install` if dependencies are missing.
+2. Start the app with `npm run dev`.
+3. Open multiple tabs or devices and switch between `Lantern`, `Ember`, and `Harbor`.
+4. Create a message on one node.
+5. Export a bundle from `Connect` and import it on another node.
+6. Open `QR Drop` to show the static communal payload.
 
-## Expanding the ESLint configuration
+## Demo notes
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+- The current QR card is a visual drop marker plus encoded payload text; it is ready to swap to a standards-compliant QR encoder in a later step.
+- The app is intentionally backend-free and works entirely with browser APIs plus local state.

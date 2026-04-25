@@ -1,122 +1,83 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { useEffect, useMemo, useState } from "react";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import Navbar from "./components/Navbar";
+import Home from "./pages/Home";
+import Create from "./pages/Create";
+import Messages from "./pages/Messages";
+import QR from "./pages/QR";
+import Connect from "./pages/Connect";
+import Alerts from "./pages/Alerts";
+import {
+  loadState,
+  saveState,
+  resetState,
+  createMessage,
+  deleteMessage,
+  exportBundle,
+  importBundle,
+  recordOutgoingSync,
+  summarize,
+} from "./lib/mesh";
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [state, setState] = useState(() => loadState());
+  const stats = useMemo(() => summarize(state), [state]);
+
+  const encodedDrop = useMemo(() => {
+    try {
+      return exportBundle(state, "drop").encoded;
+    } catch {
+      return "";
+    }
+  }, [state]);
+
+  useEffect(() => {
+    saveState(state);
+  }, [state]);
+
+  function handleCreate(form) {
+    setState((s) => createMessage(s, form));
+  }
+
+  function handleDelete(messageId) {
+    setState((s) => deleteMessage(s, messageId));
+  }
+
+  function handleExport(mode) {
+    const bundle = exportBundle(state, mode);
+    setState((s) => recordOutgoingSync(s, bundle.payload));
+    return bundle.encoded;
+  }
+
+  function handleImport(encoded) {
+    let result;
+    setState((s) => {
+      const imported = importBundle(s, encoded);
+      result = imported.result;
+      return imported.nextState;
+    });
+    return result;
+  }
+
+  function handleReset() {
+    setState(resetState());
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+    <Router>
+      <Navbar nodeToken={state.nodeToken} stats={stats} onReset={handleReset} />
+      <main className="app-shell">
+        <Routes>
+          <Route path="/" element={<Home state={state} stats={stats} />} />
+          <Route path="/create" element={<Create onCreate={handleCreate} />} />
+          <Route path="/messages" element={<Messages messages={state.messages} onDelete={handleDelete} />} />
+          <Route path="/qr" element={<QR encodedDrop={encodedDrop} onImport={handleImport} />} />
+          <Route path="/connect" element={<Connect state={state} onExport={handleExport} onImport={handleImport} />} />
+          <Route path="/alerts" element={<Alerts messages={state.messages} onCreate={handleCreate} />} />
+        </Routes>
+      </main>
+    </Router>
+  );
 }
 
-export default App
+export default App;
