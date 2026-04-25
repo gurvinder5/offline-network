@@ -1,159 +1,78 @@
-import { useState } from "react";
-import { MESSAGE_KINDS, QUICK_TEMPLATES } from "../lib/mesh";
+import React, { useState } from 'react';
 
-const DEFAULT_FORM = {
-  kind: "alert",
-  title: "",
-  body: "",
-  area: "",
-  priority: "high",
-  ttlHours: "6",
-};
+const Create = () => {
+  const [type, setType] = useState('news');
+  const [content, setContent] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [successMsg, setSuccessMsg] = useState('');
 
-function Create({ onCreate }) {
-  const [form, setForm] = useState(DEFAULT_FORM);
-  const [notice, setNotice] = useState("");
-  const [showTemplates, setShowTemplates] = useState(false);
-
-  function updateField(e) {
-    const { name, value } = e.target;
-    setForm((c) => ({ ...c, [name]: value }));
-    setNotice("");
-  }
-
-  function applyTemplate(tpl) {
-    setForm({ ...DEFAULT_FORM, ...tpl, area: "" });
-    setShowTemplates(false);
-    setNotice("");
-  }
-
-  function handleSubmit(e) {
+  const handleSubmit = (e) => {
     e.preventDefault();
-    if (!form.title.trim() || !form.body.trim()) return;
-    onCreate(form);
-    setForm(DEFAULT_FORM);
-    setNotice("Message stored locally — ready for relay or QR drop.");
-  }
-
-  const bodyLen = form.body.length;
+    if (!content.trim()) return;
+    
+    setIsSubmitting(true);
+    // Simulate processing without backend
+    setTimeout(() => {
+      console.log('Created Message:', { type, content, timestamp: 'Just now' });
+      setContent('');
+      setType('news');
+      setIsSubmitting(false);
+      setSuccessMsg('Message created successfully!');
+      setTimeout(() => setSuccessMsg(''), 3000);
+    }, 600);
+  };
 
   return (
-    <section className="form-panel">
-      <div className="panel-heading">
-        <p className="eyebrow">Local compose</p>
-        <h1>Create a relay-friendly update</h1>
-        <p className="lead">Keep messages short to survive low-bandwidth relay and QR drops.</p>
+    <div className="max-w-xl mx-auto p-6 space-y-8">
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold tracking-tight text-white">Create Message</h1>
+        <p className="text-slate-400">Publish a new alert or news update to the system.</p>
       </div>
 
-      <div>
-        <button
-          className="secondary-button"
-          type="button"
-          onClick={() => setShowTemplates(!showTemplates)}
+      <form onSubmit={handleSubmit} className="bg-slate-900/50 backdrop-blur-md border border-slate-800 rounded-2xl p-6 space-y-6 shadow-xl">
+        <div className="space-y-3">
+          <label className="block text-sm font-medium text-slate-300">Message Type</label>
+          <div className="flex gap-4">
+            <label className={`flex-1 flex items-center justify-center p-4 rounded-xl border cursor-pointer transition-all ${type === 'alert' ? 'bg-red-500/10 border-red-500/50 text-red-400' : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:bg-slate-800'}`}>
+              <input type="radio" name="type" value="alert" checked={type === 'alert'} onChange={(e) => setType(e.target.value)} className="sr-only" />
+              <span className="font-semibold">🚨 Alert</span>
+            </label>
+            <label className={`flex-1 flex items-center justify-center p-4 rounded-xl border cursor-pointer transition-all ${type === 'news' ? 'bg-blue-500/10 border-blue-500/50 text-blue-400' : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:bg-slate-800'}`}>
+              <input type="radio" name="type" value="news" checked={type === 'news'} onChange={(e) => setType(e.target.value)} className="sr-only" />
+              <span className="font-semibold">📰 News</span>
+            </label>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <label htmlFor="content" className="block text-sm font-medium text-slate-300">Content</label>
+          <textarea 
+            id="content"
+            rows="4" 
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            placeholder="Type your message here..."
+            className="w-full p-4 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all resize-none"
+            required
+          />
+        </div>
+
+        <button 
+          type="submit" 
+          disabled={isSubmitting || !content.trim()}
+          className="w-full py-4 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white rounded-xl font-semibold shadow-lg shadow-blue-900/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed transform active:scale-[0.98]"
         >
-          {showTemplates ? "Hide templates" : "⚡ Quick templates"}
+          {isSubmitting ? 'Publishing...' : 'Publish Message'}
         </button>
-      </div>
 
-      {showTemplates && (
-        <div className="templates-grid">
-          {QUICK_TEMPLATES.map((tpl, i) => (
-            <button
-              key={i}
-              className="template-card"
-              type="button"
-              onClick={() => applyTemplate(tpl)}
-            >
-              <h4>{tpl.title}</h4>
-              <p>{tpl.body.slice(0, 60)}…</p>
-            </button>
-          ))}
-        </div>
-      )}
-
-      <form className="message-form" onSubmit={handleSubmit}>
-        <label>
-          Type
-          <select name="kind" value={form.kind} onChange={updateField}>
-            {MESSAGE_KINDS.map((k) => (
-              <option key={k.value} value={k.value}>
-                {k.icon} {k.label}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label>
-          Title
-          <input
-            required
-            name="title"
-            maxLength={72}
-            value={form.title}
-            onChange={updateField}
-            placeholder="Checkpoint moved off the east bridge"
-          />
-          <span className="char-counter">{form.title.length}/72</span>
-        </label>
-
-        <label>
-          Message
-          <textarea
-            required
-            name="body"
-            rows={4}
-            maxLength={240}
-            value={form.body}
-            onChange={updateField}
-            placeholder="Keep it short — QR codes have limited capacity."
-          />
-          <span className="char-counter" style={bodyLen > 200 ? { color: "var(--red)" } : {}}>
-            {bodyLen}/240
-          </span>
-        </label>
-
-        <div className="form-grid">
-          <label>
-            Area
-            <input
-              required
-              name="area"
-              value={form.area}
-              onChange={updateField}
-              placeholder="Old Market"
-            />
-          </label>
-
-          <label>
-            Priority
-            <select name="priority" value={form.priority} onChange={updateField}>
-              <option value="critical">🔴 Critical</option>
-              <option value="high">🟠 High</option>
-              <option value="medium">🔵 Medium</option>
-              <option value="low">⚪ Low</option>
-            </select>
-          </label>
-
-          <label>
-            Expires in
-            <select name="ttlHours" value={form.ttlHours} onChange={updateField}>
-              <option value="1">1 hour</option>
-              <option value="2">2 hours</option>
-              <option value="4">4 hours</option>
-              <option value="6">6 hours</option>
-              <option value="12">12 hours</option>
-              <option value="24">24 hours</option>
-            </select>
-          </label>
-        </div>
-
-        <button className="primary-button" type="submit">
-          Save locally
-        </button>
-        {notice && <p className="notice success">{notice}</p>}
+        {successMsg && (
+          <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg text-green-400 text-sm text-center transition-all">
+            {successMsg}
+          </div>
+        )}
       </form>
-    </section>
+    </div>
   );
-}
+};
 
 export default Create;
