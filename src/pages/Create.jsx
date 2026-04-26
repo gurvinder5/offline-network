@@ -110,6 +110,5 @@ const Create = ({ onCreate }) => {
     </div>
   );
 };
-};
 
 export default Create;

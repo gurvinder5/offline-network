@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { HashRouter as Router, Routes, Route } from "react-router-dom";
 import Navbar from "./components/Navbar";
-import BottomNav from "./components/BottomNav";
 import Home from "./pages/Home";
 import Create from "./pages/Create";
 import Messages from "./pages/Messages";
@@ -103,7 +102,6 @@ function App() {
           <Route path="/alerts" element={<Alerts messages={state.messages} onCreate={handleCreate} />} />
         </Routes>
       </main>
-      <BottomNav />
     </Router>
   );
 }

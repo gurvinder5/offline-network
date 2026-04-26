@@ -71,6 +71,5 @@ function Home({ state, stats }) {
     </div>
   );
 }
-}
 
 export default Home;
