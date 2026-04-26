@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { HashRouter as Router, Routes, Route } from "react-router-dom";
 import Navbar from "./components/Navbar";
+import BottomNav from "./components/BottomNav";
 import Home from "./pages/Home";
 import Create from "./pages/Create";
 import Messages from "./pages/Messages";
@@ -18,10 +19,25 @@ import {
   recordOutgoingSync,
   summarize,
 } from "./lib/mesh";
+import * as rtc from "./lib/webrtc";
 
 function App() {
   const [state, setState] = useState(() => loadState());
   const stats = useMemo(() => summarize(state), [state]);
+
+  // Lifted WebRTC state — persists across tab navigation
+  const pcRef = useRef(null);
+  const dataChannelRef = useRef(null);
+  const [rtcPhase, setRtcPhase] = useState("idle");
+  const [offerString, setOfferString] = useState("");
+  const [answerString, setAnswerString] = useState("");
+
+  // Cleanup on app unmount only
+  useEffect(() => {
+    return () => {
+      rtc.closeConnection(pcRef.current);
+    };
+  }, []);
 
   const encodedDrop = useMemo(() => {
     try {
@@ -63,6 +79,17 @@ function App() {
     setState(resetState());
   }
 
+  const rtcProps = {
+    pcRef,
+    dataChannelRef,
+    rtcPhase,
+    setRtcPhase,
+    offerString,
+    setOfferString,
+    answerString,
+    setAnswerString,
+  };
+
   return (
     <Router>
       <Navbar nodeToken={state.nodeToken} stats={stats} onReset={handleReset} />
@@ -72,10 +99,11 @@ function App() {
           <Route path="/create" element={<Create onCreate={handleCreate} />} />
           <Route path="/messages" element={<Messages messages={state.messages} onDelete={handleDelete} />} />
           <Route path="/qr" element={<QR encodedDrop={encodedDrop} onImport={handleImport} />} />
-          <Route path="/connect" element={<Connect state={state} onExport={handleExport} onImport={handleImport} />} />
+          <Route path="/connect" element={<Connect state={state} onExport={handleExport} onImport={handleImport} rtcProps={rtcProps} />} />
           <Route path="/alerts" element={<Alerts messages={state.messages} onCreate={handleCreate} />} />
         </Routes>
       </main>
+      <BottomNav />
     </Router>
   );
 }

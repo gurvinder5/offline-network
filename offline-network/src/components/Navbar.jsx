@@ -13,33 +13,19 @@ function Navbar({ nodeToken, stats, onReset }) {
   return (
     <header className="top-shell">
       <div className="brand-row">
-        <div>
-          <p className="eyebrow">Offline mesh relay</p>
+        <div onClick={onReset} style={{ cursor: 'pointer' }}>
+          <p className="eyebrow">Offline Mesh</p>
           <strong className="brand-mark">Signal Cache</strong>
         </div>
         <div className="status-strip">
-          <span className="node-badge">node:{nodeToken}</span>
-          <span>{stats.total} msgs</span>
-          {stats.critical > 0 && <span style={{ color: "var(--red)" }}>⚠ {stats.critical}</span>}
-          <button className="ghost-button" type="button" onClick={onReset}>
-            Reset
-          </button>
+          <div className="node-badge">ID: {nodeToken.slice(0, 8)}</div>
+          {stats.critical > 0 && (
+            <div className="node-badge" style={{ borderColor: 'var(--red)', color: 'var(--red)' }}>
+              ⚠ {stats.critical}
+            </div>
+          )}
         </div>
       </div>
-      <nav className="nav-row">
-        <div className="nav-links">
-          {LINKS.map((link) => (
-            <NavLink
-              key={link.to}
-              to={link.to}
-              end={link.to === "/"}
-              className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}
-            >
-              {link.label}
-            </NavLink>
-          ))}
-        </div>
-      </nav>
     </header>
   );
 }

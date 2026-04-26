@@ -6,42 +6,42 @@ export default function QR({ encodedDrop, onImport }) {
   const [activeTab, setActiveTab] = useState('generate');
 
   return (
-    <div className="min-h-[80vh] flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8 w-full font-sans">
-      <div className="max-w-3xl w-full flex flex-col items-center gap-8">
+    <div className="min-h-screen flex flex-col items-center py-8 px-4 sm:px-6 w-full font-sans">
+      <div className="w-full max-w-xl flex flex-col items-center gap-6">
         
-        <div className="text-center space-y-4">
-          <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-white drop-shadow-sm">
+        <div className="text-center space-y-2">
+          <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-white">
             QR Studio
           </h1>
-          <p className="text-lg text-gray-400 max-w-xl mx-auto">
-            Easily generate and scan QR codes with a modern, simple interface.
+          <p className="text-sm text-gray-400">
+            Exchange messages offline via QR codes.
           </p>
         </div>
 
-        <div className="flex bg-white/10 p-1 rounded-2xl border border-white/10 shadow-lg">
+        <div className="flex bg-white/5 p-1 rounded-xl border border-white/10 w-full max-w-[300px]">
           <button
             onClick={() => setActiveTab('generate')}
-            className={`px-8 py-3 rounded-xl font-medium transition-all duration-300 cursor-pointer ${
+            className={`flex-1 py-2.5 rounded-lg font-medium transition-all cursor-pointer text-sm ${
               activeTab === 'generate'
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
+                ? 'bg-blue-600 text-white shadow-lg'
+                : 'text-gray-400 hover:text-white'
             }`}
           >
             Generate
           </button>
           <button
             onClick={() => setActiveTab('scan')}
-            className={`px-8 py-3 rounded-xl font-medium transition-all duration-300 cursor-pointer ${
+            className={`flex-1 py-2.5 rounded-lg font-medium transition-all cursor-pointer text-sm ${
               activeTab === 'scan'
-                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/30'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
+                ? 'bg-emerald-600 text-white shadow-lg'
+                : 'text-gray-400 hover:text-white'
             }`}
           >
             Scan
           </button>
         </div>
 
-        <div className="w-full flex justify-center mt-4 transition-all duration-500">
+        <div className="w-full flex justify-center mt-2">
           {activeTab === 'generate' ? <QRGenerator /> : <QRScanner />}
         </div>
         

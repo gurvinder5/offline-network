@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
+import { Html5Qrcode } from "html5-qrcode";
 import * as rtc from "../lib/webrtc";
 import * as ble from "../lib/ble";
 
-function Connect({ state, onExport, onImport }) {
+function Connect({ state, onExport, onImport, rtcProps }) {
   // Layout state
   const [outgoing, setOutgoing] = useState("");
   const [incoming, setIncoming] = useState("");
@@ -10,13 +12,9 @@ function Connect({ state, onExport, onImport }) {
   const [statusType, setStatusType] = useState(""); // "", "success", "error"
   const channelRef = useRef(null);
 
-  // WebRTC state
-  const [rtcPhase, setRtcPhase] = useState("idle"); // idle, offering, answering, connected
-  const [offerString, setOfferString] = useState("");
+  // WebRTC state — lifted to App.jsx so it survives tab navigation
+  const { pcRef, dataChannelRef, rtcPhase, setRtcPhase, offerString, setOfferString, answerString, setAnswerString } = rtcProps;
   const [answerInput, setAnswerInput] = useState("");
-  const [answerString, setAnswerString] = useState("");
-  const pcRef = useRef(null);
-  const dataChannelRef = useRef(null);
 
   // BLE state
   const [blePhase, setBlePhase] = useState("idle"); // idle, scanning, connected
@@ -37,19 +35,61 @@ function Connect({ state, onExport, onImport }) {
     return () => ch.close();
   }, []);
 
-  // Cleanup WebRTC on unmount
-  useEffect(() => {
-    return () => {
-      rtc.closeConnection(pcRef.current);
-    };
-  }, []);
-
   const messageCount = useMemo(() => state.messages.length, [state.messages.length]);
 
   function showStatus(msg, type = "") {
     setStatus(msg);
     setStatusType(type);
   }
+
+  // ── Inline QR scanner ──
+  const [scanning, setScanning] = useState(false); // which slot is scanning: false | "offer" | "answer"
+  const qrScannerRef = useRef(null);
+  const QR_DIV_ID = "rtc-qr-reader";
+
+  const startQrScan = useCallback(async (slot) => {
+    setScanning(slot);
+    setTimeout(async () => {
+      try {
+        const scanner = new Html5Qrcode(QR_DIV_ID);
+        qrScannerRef.current = scanner;
+        await scanner.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: { width: 220, height: 220 } },
+          (decoded) => {
+            scanner.stop().catch(() => {});
+            qrScannerRef.current = null;
+            setScanning(false);
+            if (slot === "offer") {
+              setAnswerInput(decoded);
+              showStatus("Offer scanned! Click Accept offer to continue.", "success");
+            } else if (slot === "answer") {
+              // auto-apply scanned answer
+              rtc.completeConnection(pcRef.current, decoded)
+                .then(() => showStatus("Answer scanned & applied — waiting for channel...", "success"))
+                .catch((e) => showStatus(`Answer failed: ${e.message}`, "error"));
+            }
+          },
+          () => {}
+        );
+      } catch (e) {
+        showStatus(`Camera error: ${e.message}`, "error");
+        setScanning(false);
+      }
+    }, 100);
+  }, [pcRef]);
+
+  const stopQrScan = useCallback(() => {
+    if (qrScannerRef.current) {
+      qrScannerRef.current.stop().catch(() => {});
+      qrScannerRef.current = null;
+    }
+    setScanning(false);
+  }, []);
+
+  useEffect(() => {
+    return () => { if (qrScannerRef.current) qrScannerRef.current.stop().catch(() => {}); };
+  }, []);
 
   // ── Bundle tab ──
   function handleGenerate(mode) {
@@ -170,17 +210,31 @@ function Connect({ state, onExport, onImport }) {
 
   // ── BLE tab ──
   async function startBleScan() {
+    // Check Web Bluetooth support first
+    if (!ble.isBleAvailable()) {
+      showStatus(
+        "Bluetooth not supported in this browser. Use Chrome or Edge, and ensure the page is on localhost or HTTPS.",
+        "error"
+      );
+      return;
+    }
     try {
       setBlePhase("scanning");
       setBleDevices([]);
-      showStatus("Initializing Bluetooth...", "");
-      await ble.initializeBle();
-      showStatus("Scanning for nearby Mesh nodes...", "");
+      showStatus("Opening Bluetooth device picker...", "");
       await ble.scanForNodes((device) => {
+        ble.storeDevice(device);
         setBleDevices((prev) => [...prev, device]);
+        setBlePhase("scanning");
+        showStatus(`Found: ${device.name || "Unknown"}. Click Connect to pair.`, "success");
       });
     } catch (err) {
-      showStatus(`BLE Scan failed: ${err.message}`, "error");
+      // User cancelled the picker or no device selected — not a real error
+      if (err.name === "NotFoundError" || err.message.includes("cancelled")) {
+        showStatus("No device selected.", "");
+      } else {
+        showStatus(`BLE error: ${err.message}`, "error");
+      }
       setBlePhase("idle");
     }
   }
@@ -215,7 +269,7 @@ function Connect({ state, onExport, onImport }) {
     const encoded = onExport("encounter");
     try {
       showStatus("Sending bundle via BLE...", "");
-      await ble.sendBundle(connectedDevice.deviceId, encoded + '||END||');
+      await ble.sendBundle(connectedDevice.deviceId, encoded);
       showStatus("Bundle sent to BLE peer.", "success");
     } catch (err) {
       showStatus(`Send failed: ${err.message}`, "error");
@@ -313,20 +367,37 @@ function Connect({ state, onExport, onImport }) {
 
             {rtcPhase === "idle" && (
               <div style={{ marginTop: 16 }}>
-                <h3>Start a connection</h3>
-                <div className="action-row" style={{ marginBottom: 14 }}>
+                <h3>I am starting the connection</h3>
+                <div className="action-row" style={{ marginBottom: 20 }}>
                   <button className="primary-button" type="button" onClick={startOffer}>
-                    I'm initiating (create offer)
+                    Generate offer QR
                   </button>
                 </div>
-                <h3>Or join a connection</h3>
-                <textarea
-                  className="payload-box"
-                  value={answerInput}
-                  onChange={(e) => setAnswerInput(e.target.value)}
-                  placeholder="Paste the offer from the initiating device here."
-                  style={{ minHeight: 80 }}
-                />
+
+                <h3>I am joining a connection</h3>
+                <p style={{ color: "var(--text-muted)", fontSize: "0.82rem", marginBottom: 8 }}>
+                  Scan the offer QR shown on the initiating device.
+                </p>
+                {scanning === "offer" ? (
+                  <>
+                    <div id={QR_DIV_ID} style={{ width: "100%", maxWidth: 280, borderRadius: 8, overflow: "hidden" }} />
+                    <button className="secondary-button" type="button" onClick={stopQrScan} style={{ marginTop: 8 }}>Stop scanner</button>
+                  </>
+                ) : (
+                  <>
+                    <button className="primary-button" type="button" onClick={() => startQrScan("offer")} style={{ marginBottom: 8 }}>
+                      📷 Scan offer QR
+                    </button>
+                    <p style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>Or paste manually:</p>
+                    <textarea
+                      className="payload-box"
+                      value={answerInput}
+                      onChange={(e) => setAnswerInput(e.target.value)}
+                      placeholder="Paste the offer from the initiating device."
+                      style={{ minHeight: 60 }}
+                    />
+                  </>
+                )}
                 <button className="primary-button" type="button" onClick={startAnswer} style={{ marginTop: 8 }}>
                   Accept offer & generate answer
                 </button>
@@ -335,34 +406,55 @@ function Connect({ state, onExport, onImport }) {
 
             {rtcPhase === "offering" && (
               <div style={{ marginTop: 16 }}>
-                <h3>Your offer (share with other device)</h3>
-                <textarea className="payload-box" value={offerString} readOnly style={{ minHeight: 80 }} />
-                <button className="secondary-button" type="button" onClick={() => navigator.clipboard.writeText(offerString)} style={{ marginTop: 8 }}>
-                  Copy offer
-                </button>
-                <h3 style={{ marginTop: 16 }}>Paste their answer</h3>
-                <textarea
-                  className="payload-box"
-                  value={answerInput}
-                  onChange={(e) => setAnswerInput(e.target.value)}
-                  placeholder="Paste the answer from the other device."
-                  style={{ minHeight: 80 }}
-                />
-                <button className="primary-button" type="button" onClick={applyAnswer} style={{ marginTop: 8 }}>
-                  Apply answer
-                </button>
+                <h3>Step 1 — Show this QR to Device B</h3>
+                <p style={{ color: "var(--text-muted)", fontSize: "0.82rem", marginBottom: 12 }}>
+                  Device B opens Hardware Sync → scans this QR code with the camera.
+                </p>
+                <div style={{ background: "#fff", padding: 16, borderRadius: 12, display: "inline-block", marginBottom: 12 }}>
+                  <QRCodeSVG value={offerString} size={200} level="M" />
+                </div>
+
+                <h3 style={{ marginTop: 20 }}>Step 2 — Scan Device B's answer QR</h3>
+                <p style={{ color: "var(--text-muted)", fontSize: "0.82rem", marginBottom: 8 }}>
+                  After Device B generates their answer, scan their QR code below.
+                </p>
+                {scanning === "answer" ? (
+                  <>
+                    <div id={QR_DIV_ID} style={{ width: "100%", maxWidth: 280, borderRadius: 8, overflow: "hidden" }} />
+                    <button className="secondary-button" type="button" onClick={stopQrScan} style={{ marginTop: 8 }}>Stop scanner</button>
+                  </>
+                ) : (
+                  <>
+                    <button className="primary-button" type="button" onClick={() => startQrScan("answer")} style={{ marginBottom: 8 }}>
+                      📷 Scan answer QR
+                    </button>
+                    <p style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>Or paste manually:</p>
+                    <textarea
+                      className="payload-box"
+                      value={answerInput}
+                      onChange={(e) => setAnswerInput(e.target.value)}
+                      placeholder="Paste the answer from the other device."
+                      style={{ minHeight: 60 }}
+                    />
+                    <button className="primary-button" type="button" onClick={applyAnswer} style={{ marginTop: 8 }}>
+                      Apply answer
+                    </button>
+                  </>
+                )}
               </div>
             )}
 
             {rtcPhase === "answering" && answerString && (
               <div style={{ marginTop: 16 }}>
-                <h3>Your answer (share back with initiator)</h3>
-                <textarea className="payload-box" value={answerString} readOnly style={{ minHeight: 80 }} />
-                <button className="secondary-button" type="button" onClick={() => navigator.clipboard.writeText(answerString)} style={{ marginTop: 8 }}>
-                  Copy answer
-                </button>
-                <p style={{ color: "var(--text-muted)", fontSize: "0.82rem", marginTop: 8 }}>
-                  Waiting for the initiator to apply your answer and open the channel...
+                <h3>Step 1 — Show this QR to Device A</h3>
+                <p style={{ color: "var(--text-muted)", fontSize: "0.82rem", marginBottom: 12 }}>
+                  Device A (the initiator) scans this QR to complete the handshake.
+                </p>
+                <div style={{ background: "#fff", padding: 16, borderRadius: 12, display: "inline-block" }}>
+                  <QRCodeSVG value={answerString} size={200} level="M" />
+                </div>
+                <p style={{ color: "var(--text-muted)", fontSize: "0.82rem", marginTop: 12 }}>
+                  Waiting for Device A to scan... connection will open automatically.
                 </p>
               </div>
             )}
@@ -389,58 +481,44 @@ function Connect({ state, onExport, onImport }) {
             <h2>Bluetooth Mesh</h2>
           </div>
           <article className="info-panel" style={{ height: "100%" }}>
-            <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", marginBottom: 16 }}>
-              Discover and sync automatically with nearby devices using Bluetooth Low Energy.
-            </p>
-            <div className={`connection-status ${blePhase === "connected" ? "connected" : blePhase === "idle" ? "disconnected" : "connecting"}`}>
-              <span className={`pulse-dot ${blePhase === "connected" ? "green" : blePhase === "idle" ? "" : "amber"}`}
-                style={blePhase === "idle" ? { background: "var(--text-dim)" } : {}} />
-              {blePhase === "idle" && "Bluetooth Offline"}
-              {blePhase === "scanning" && "Scanning for nodes..."}
-              {blePhase === "connected" && `Connected to ${connectedDevice?.name || 'Node'}`}
-            </div>
-
-            {blePhase === "idle" && (
-              <div style={{ marginTop: 16 }}>
-                <button className="primary-button" type="button" onClick={startBleScan}>
-                  Scan for Nearby Nodes
-                </button>
-                <p style={{ marginTop: 12, color: 'var(--text-muted)' }}>
-                  Requires location and Bluetooth permissions. Ensure your device is capable of BLE Central roles.
+            <div style={{
+              background: "rgba(255,180,0,0.08)",
+              border: "1px solid rgba(255,180,0,0.3)",
+              borderRadius: 10,
+              padding: "14px 16px",
+              marginBottom: 16,
+              display: "flex",
+              gap: 10,
+              alignItems: "flex-start"
+            }}>
+              <span style={{ fontSize: "1.2rem", flexShrink: 0 }}>⚠️</span>
+              <div>
+                <p style={{ fontWeight: 600, color: "var(--amber, #f5a623)", marginBottom: 4, fontSize: "0.9rem" }}>
+                  Native App Required
+                </p>
+                <p style={{ color: "var(--text-muted)", fontSize: "0.82rem", lineHeight: 1.5 }}>
+                  Web browsers can only <strong>scan</strong> for Bluetooth devices — they cannot
+                  <strong> advertise</strong> themselves. This means two web browsers can never
+                  discover each other over BLE.
+                </p>
+                <p style={{ color: "var(--text-muted)", fontSize: "0.82rem", marginTop: 6, lineHeight: 1.5 }}>
+                  Bluetooth Mesh works when at least one device runs the <strong>native Android/iOS app</strong> built
+                  from this project using Capacitor.
                 </p>
               </div>
-            )}
+            </div>
 
-            {blePhase === "scanning" && (
-              <div style={{ marginTop: 16 }}>
-                <h3>Discovered Nodes</h3>
-                {bleDevices.length === 0 && <p style={{ color: "var(--text-muted)", marginTop: 8 }}>Searching...</p>}
-                <div className="device-list" style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {bleDevices.map(d => (
-                    <div key={d.deviceId} style={{ display: 'flex', justifyContent: 'space-between', padding: 12, background: 'var(--bg-subtle)', borderRadius: 8 }}>
-                      <span>{d.name || 'Unknown Node'} ({d.deviceId})</span>
-                      <button className="secondary-button" onClick={() => connectBle(d)}>Connect</button>
-                    </div>
-                  ))}
-                </div>
-                <button className="secondary-button" type="button" onClick={() => { ble.stopScan(); setBlePhase("idle"); }} style={{ marginTop: 16 }}>
-                  Stop Scan
-                </button>
+            <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", marginBottom: 12 }}>
+              <strong style={{ color: "var(--text)" }}>Use these instead for web-to-web sync:</strong>
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ background: "var(--bg-subtle)", borderRadius: 8, padding: "10px 14px", fontSize: "0.85rem" }}>
+                <strong>📡 Local Wi-Fi P2P (above)</strong> — same network, QR-based handshake, instant sync.
               </div>
-            )}
-
-            {blePhase === "connected" && (
-              <div style={{ marginTop: 16 }}>
-                <div className="action-row">
-                  <button className="primary-button" type="button" onClick={sendViaBle}>
-                    Send my messages to peer
-                  </button>
-                  <button className="danger-button" type="button" onClick={disconnectBle}>
-                    Disconnect
-                  </button>
-                </div>
+              <div style={{ background: "var(--bg-subtle)", borderRadius: 8, padding: "10px 14px", fontSize: "0.85rem" }}>
+                <strong>📦 Manual Bundle / QR Drop</strong> — fully offline, scan a QR code from any screen.
               </div>
-            )}
+            </div>
           </article>
         </section>
 

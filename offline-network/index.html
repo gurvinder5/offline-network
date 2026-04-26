@@ -2,6 +2,17 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      window.onerror = function(msg, url, line, col, error) {
+        var div = document.createElement('div');
+        div.style.position = 'fixed'; div.style.top = '0'; div.style.left = '0';
+        div.style.background = 'red'; div.style.color = 'white'; div.style.zIndex = '10000';
+        div.style.padding = '10px'; div.style.fontSize = '12px'; div.style.wordBreak = 'break-all';
+        div.innerHTML = 'ERROR: ' + msg + ' at ' + url + ':' + line;
+        document.body.appendChild(div);
+        return false;
+      };
+    </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -14,8 +25,9 @@
     />
     <title>Signal Cache — Offline Mesh Communication</title>
   </head>
-  <body>
+  <body style="background: #1a1a1a;">
     <div id="root"></div>
+    <div id="debug-marker" style="position: fixed; bottom: 10px; right: 10px; color: #333; font-size: 10px; pointer-events: none;">v1.0.2-sync</div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

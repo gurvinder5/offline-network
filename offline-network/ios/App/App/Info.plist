@@ -47,6 +47,8 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Uses camera to scan QR codes for offline message synchronization.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>Uses Bluetooth to connect and sync offline network messages with nearby peers.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>

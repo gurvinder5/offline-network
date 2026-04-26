@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
+import { Camera } from '@capacitor/camera';
 
 export default function QRScanner() {
   const [scanning, setScanning] = useState(false);
@@ -8,37 +9,70 @@ export default function QRScanner() {
   const scannerRef = useRef(null);
   const scannerDivId = "qr-reader";
 
+  const requestPermissions = async () => {
+    try {
+      const status = await Camera.checkPermissions();
+      if (status.camera !== 'granted') {
+        const request = await Camera.requestPermissions({ permissions: ['camera'] });
+        return request.camera === 'granted';
+      }
+      return true;
+    } catch (err) {
+      console.warn("Permission request failed, falling back to browser prompt:", err);
+      return true; // Fallback to browser/webview prompt
+    }
+  };
+
   const startScanner = useCallback(async () => {
     if (scanning) return;
     setScanResult("");
     setError("");
 
+    // Request native permissions first for Capacitor/Mobile
+    const hasPermission = await requestPermissions();
+    if (!hasPermission) {
+      setError("Camera permission denied. Please enable it in settings.");
+      return;
+    }
+
+    setScanning(true); // Set scanning true BEFORE starting to ensure DIV has height
+
     try {
+      // Small delay to ensure DOM has updated with the height
+      await new Promise(r => setTimeout(r, 100));
+
       const scanner = new Html5Qrcode(scannerDivId);
       scannerRef.current = scanner;
 
       await scanner.start(
         { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 250, height: 250 } },
+        {
+          fps: 10,
+          qrbox: { width: 250, height: 250 },
+          aspectRatio: 1.0
+        },
         (decodedText) => {
           setScanResult(decodedText);
-          scanner.stop().catch(console.error);
-          scannerRef.current = null;
-          setScanning(false);
+          stopScanner();
         },
         (errorMessage) => {
           // ignore continuous scanning errors
         }
       );
-      setScanning(true);
     } catch (err) {
+      setScanning(false);
       setError(`Camera error: ${err.message || err}`);
+      console.error(err);
     }
   }, [scanning]);
 
-  const stopScanner = useCallback(() => {
+  const stopScanner = useCallback(async () => {
     if (scannerRef.current) {
-      scannerRef.current.stop().catch(console.error);
+      try {
+        await scannerRef.current.stop();
+      } catch (e) {
+        console.warn("Stop error", e);
+      }
       scannerRef.current = null;
     }
     setScanning(false);
@@ -72,11 +106,25 @@ export default function QRScanner() {
         </button>
       )}
 
-      <div 
-        id={scannerDivId} 
-        className="w-full max-w-[300px] rounded-xl overflow-hidden bg-black/20"
-        style={{ minHeight: scanning ? '250px' : '0' }}
-      />
+      <div className="relative w-full aspect-square max-w-[300px] overflow-hidden rounded-2xl bg-black/40 border-2 border-white/5 flex items-center justify-center">
+        {!scanning && !scanResult && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-500 gap-2">
+            <div className="w-12 h-12 border-2 border-dashed border-gray-600 rounded-lg flex items-center justify-center">
+              📸
+            </div>
+            <span className="text-xs font-medium">Camera Preview</span>
+          </div>
+        )}
+
+        <div
+          id={scannerDivId}
+          className="w-full h-full"
+        />
+
+        {scanning && (
+          <div className="absolute inset-0 pointer-events-none border-2 border-blue-500/50 rounded-2xl animate-pulse" />
+        )}
+      </div>
 
       {error && (
         <div className="w-full p-4 bg-red-500/20 border border-red-500/50 rounded-xl text-red-200 text-sm">
