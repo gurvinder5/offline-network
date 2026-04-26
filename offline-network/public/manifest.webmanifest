@@ -1,0 +1,18 @@
+{
+  "name": "Signal Cache",
+  "short_name": "SignalCache",
+  "description": "Offline mesh communication for resilient information relay",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0c10",
+  "theme_color": "#0a0c10",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

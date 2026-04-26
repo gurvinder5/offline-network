@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Signal Cache</string>
+    <string name="title_activity_main">Signal Cache</string>
+    <string name="package_name">com.signalcache.app</string>
+    <string name="custom_url_scheme">com.signalcache.app</string>
+</resources>
